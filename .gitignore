@@ -1,0 +1,9 @@
+node_modules/
+dist/
+backups/
+*.dump
+*.sql
+*.tar
+.env
+.DS_Store
+*.log
