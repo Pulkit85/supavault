@@ -1,0 +1,12 @@
+version: "3.8"
+
+services:
+  supavault:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    env_file:
+      - ../.env
+    volumes:
+      - ../backups:/backups
+    command: ["backup", "--out", "/backups"]
