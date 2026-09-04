@@ -1,0 +1,43 @@
+name: Scheduled Supabase Database Backup
+
+on:
+  schedule:
+    # Runs everyday at 02:00 UTC
+    - cron: "0 2 * * *"
+  workflow_dispatch: # Allows manual trigger from GitHub UI
+
+jobs:
+  backup:
+    name: Execute SupaVault Backup
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install PostgreSQL Client
+        run: sudo apt-get update && sudo apt-get install -y postgresql-client
+
+      - name: Run SupaVault Backup
+        run: |
+          npx supavault backup \
+            --host "${{ secrets.SUPAVAULT_HOST }}" \
+            --port "${{ secrets.SUPAVAULT_PORT || '5432' }}" \
+            --database "${{ secrets.SUPAVAULT_DATABASE || 'postgres' }}" \
+            --user "${{ secrets.SUPAVAULT_USER || 'postgres' }}" \
+            --password "${{ secrets.SUPAVAULT_PASSWORD }}" \
+            --ssl "require" \
+            --type "full" \
+            --out "./backups"
+
+      - name: Upload Backup as Workflow Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: supabase-backup-${{ github.run_number }}
+          path: ./backups/*
+          retention-days: 30
