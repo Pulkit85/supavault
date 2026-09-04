@@ -37,7 +37,7 @@ export function executeCommand(cmd: string, args: string[], options: ExecOptions
             `Required PostgreSQL tool '${cmd}' was not found in your PATH.\n` +
             `👉 On macOS: brew install libpq && brew link --force libpq\n` +
             `👉 On Ubuntu/Debian: sudo apt-get install -y postgresql-client\n` +
-            `👉 Or run via Docker: docker run --rm pulkitbisht/supavault backup ...`
+            `👉 Or run via Docker: See README.md Docker section for instructions`
           )
         );
       } else {
