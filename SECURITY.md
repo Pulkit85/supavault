@@ -22,7 +22,7 @@ If you discover a security vulnerability in SupaVault, please report it privatel
 
 Send a detailed report to:
 
-📧 **security@fawru.com**
+📧 **support@fawru.com**
 
 Include the following in your report:
 
