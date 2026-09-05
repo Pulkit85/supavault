@@ -9,14 +9,13 @@
 [![PostgreSQL](https://img.shields.io/badge/PostgreSQL-12%20--%2016-blue.svg)](https://www.postgresql.org/)
 [![Docker Ready](https://img.shields.io/badge/Docker-Ready-2496ED.svg)](https://www.docker.com/)
 
-*Take control of your database backups without forced enterprise upgrades, vendor lock-in, or complex infrastructure.*
+*Take control of your database backups — no vendor lock-in, no complex infrastructure.*
 
 [Prerequisites](#-prerequisites) •
-[Quick Start](#-quick-start) •
-[Supabase Connection Guide](#-supabase-connection-guide-important) •
-[CLI Commands](#-cli-commands) •
-[Restore & Migration](#-restore--migration) •
-[Automate with GitHub Actions](#-automated-daily-backups-via-github-actions) •
+[Supabase Connection Guide](#-supabase-connection-guide) •
+[Backup](#-backup) •
+[Restore & Migrate](#-restore--migrate) •
+[Automate](#-automate-with-github-actions) •
 [Troubleshooting](#-troubleshooting)
 
 </div>
@@ -31,7 +30,7 @@
 | `main` | 🔒 Protected | Mirrors the latest release. Always in sync with `Release_1.0.0`. |
 | `development` | 🚧 In progress | Active development. May be unstable. |
 
-> **Always clone or checkout `Release_1.0.0`** for the most stable experience:
+> **Always clone `Release_1.0.0`** for the most stable experience:
 > ```bash
 > git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
 > ```
@@ -40,22 +39,13 @@
 
 ## 💡 Why SupaVault?
 
-Supabase Free Tier does not include automated daily backups or Point-in-Time Recovery (PITR). If you want to:
-
-- 🔒 **Back up your production data** to your local machine or private cloud storage
-- 🔁 **Migrate across environments** — Supabase → Self-hosted → Neon → AWS RDS
-- 🧪 **Clone staging/dev environments** quickly with real schemas or data
-- ⚡ **Automate backups for free** using standard GitHub Actions runners
-
-**SupaVault** solves this with a lightweight CLI tool and zero cloud dependencies.
+Supabase Free Tier does not include automated backups or Point-in-Time Recovery (PITR). SupaVault solves this with a lightweight CLI tool — back up your database to your local machine, migrate across providers, or automate with GitHub Actions for free.
 
 ---
 
 ## ✅ Prerequisites
 
 You need **two things** installed before running SupaVault. Do not skip this section.
-
----
 
 ### 1. Node.js (version 18 or higher)
 
@@ -65,26 +55,19 @@ Check if already installed:
 node --version
 ```
 
-If it prints `v18.x.x` or higher — you are ready. If not, download the **LTS** version from [nodejs.org](https://nodejs.org/) and install it.
-
----
+If it prints `v18.x.x` or higher — you are ready. If not, download the **LTS** version from [nodejs.org](https://nodejs.org/).
 
 ### 2. PostgreSQL Client Tools (`pg_dump`)
 
-SupaVault uses `pg_dump` to create the backup. You only need the **client tools** — not a full Postgres server.
+SupaVault uses `pg_dump` to create backups. You only need the **client tools** — not a full Postgres server.
 
 **macOS:**
 
 ```bash
-# Step 1 — Install Homebrew (if not already installed)
+# Install Homebrew if not already installed
 /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 
-# Step 2 — After install, run the two commands Homebrew shows you under "Next steps"
-# They look like this (copy from your terminal output, not from here):
-echo 'eval "$(/opt/homebrew/bin/brew shellenv)"' >> ~/.zshrc
-eval "$(/opt/homebrew/bin/brew shellenv)"
-
-# Step 3 — Install pg_dump
+# After install, run the "Next steps" commands Homebrew shows you, then:
 brew install libpq && brew link --force libpq
 ```
 
@@ -96,96 +79,118 @@ sudo apt-get update && sudo apt-get install -y postgresql-client
 
 **Windows:**
 
-Download the PostgreSQL installer from [postgresql.org/download/windows](https://www.postgresql.org/download/windows/), select **"Command Line Tools"** only during setup.
+Download from [postgresql.org/download/windows](https://www.postgresql.org/download/windows/) — select **"Command Line Tools"** only.
 
-**Verify it works:**
+**Verify:**
 
 ```bash
 pg_dump --version
 # Should print: pg_dump (PostgreSQL) 16.x
 ```
 
-> If `pg_dump` is not installed, every backup command will fail with `pg_dump: command not found`. Install it first before proceeding.
-
 ---
 
-## 🧭 Supabase Connection Guide (Important)
+## 🧭 Supabase Connection Guide
 
 > **Read this before running any command.** Using the wrong host is the #1 reason backups fail.
 
-### ⚠️ Direct Connection vs Pooler — What to Use
+### ⚠️ Direct Connection vs Pooler
 
-Supabase gives you two types of database URLs. **Only Direct Connection works with SupaVault.**
+Supabase gives you two types of hosts. **Only Direct Connection works with SupaVault.**
 
-| Type | Host looks like | Works with SupaVault? |
+| Type | Host format | Works? |
 |---|---|---|
 | ✅ **Direct Connection** | `db.abcdefgh.supabase.co` | **Yes — use this** |
-| ❌ Pooler | `aws-0-ap-southeast-1.pooler.supabase.com` | No — `pg_dump` will fail |
+| ❌ Pooler | `aws-0-region.pooler.supabase.com` | No — `pg_dump` will fail |
 
-The pooler is a proxy for app queries. `pg_dump` requires a direct connection to the actual Postgres server. Using the pooler URL will give you this error:
-
+Using the pooler URL gives this error:
 ```
 FATAL: no tenant identifier provided (external_id or sni_hostname required)
 ```
 
 ### How to Find Your Direct Connection Host
 
-1. Go to **[supabase.com](https://supabase.com)** and open your project
-2. Click **Project Settings** (gear icon in the left sidebar)
-3. Click the **Database** tab
-4. Under **"Connection parameters"**, make sure the toggle shows **"Direct connection"**
-5. Your host will look like: `db.abcdefghijkl.supabase.co`
+1. Open your project on **[supabase.com](https://supabase.com)**
+2. Go to **Project Settings → Database**
+3. Under **"Connection parameters"**, select the **"Direct connection"** toggle
+4. Copy the **Host** — it looks like: `db.abcdefghijkl.supabase.co`
 
 ### Your Connection Details
 
-| Field | Where to find | Example |
-|---|---|---|
-| **Host** | Connection parameters → Direct connection | `db.abcdefgh.supabase.co` |
-| **Port** | Connection parameters | `5432` |
-| **Database** | Connection parameters | `postgres` |
-| **User** | Connection parameters | `postgres` |
-| **Password** | The password you set when creating the project | `yourpassword` |
-
-> 🔑 **Password tip:** If your password contains special characters like `@`, `!`, `#` — wrap it in double quotes when using flags (`--password "p@ss!word"`). If using a URL format, encode `@` as `%40`.
-
----
-
-## 🚀 Quick Start
-
-### Which command style should I use?
-
-| Situation | Command to use |
+| Field | Example |
 |---|---|
-| Package published on npm (future) | `npx supavault backup ...` |
-| **Cloned the repo locally (now)** | `node dist/index.js backup ...` |
-| Installed globally with `npm install -g .` | `supavault backup ...` |
+| **Host** | `db.abcdefgh.supabase.co` |
+| **Port** | `5432` |
+| **Database** | `postgres` |
+| **User** | `postgres` |
+| **Password** | The password you set when creating the project |
 
-Since SupaVault is currently run from the cloned source, **all examples below use `node dist/index.js`**.
+> 🔑 **Special characters in password?** Wrap in double quotes: `--password "p@ss!word"`. In a URL, encode `@` as `%40`.
 
 ---
 
-### Step 1 — Clone the repository
+## 💾 Backup
+
+### Which command to use?
+
+| Situation | Command prefix |
+|---|---|
+| **Cloned the repo locally** | `node dist/index.js` |
+| Installed globally via `npm install -g .` | `supavault` |
+
+All examples below use `node dist/index.js` since SupaVault is run from source.
+
+### Setup (one time)
 
 ```bash
-git clone https://github.com/<your-username>/supavault.git
+git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
 cd supavault
-```
-
-### Step 2 — Install dependencies
-
-```bash
 npm install
-```
-
-### Step 3 — Build the project
-
-```bash
 npm run build
 ```
 
-### Step 4 — Run your first backup
+---
 
-**Using individual flags:**
+### Option 1 — Public Schema Backup ✅ Recommended for Supabase
+
+**Best for:** Backing up to another Supabase project or any PostgreSQL provider.
+
+This backs up only your `public` schema — your own tables and data — and skips Supabase's internal system objects (PostgREST triggers, Storage internals). This avoids permission errors during restore and gives you a clean, portable backup.
+
+```bash
+PGPASSWORD="yourpassword" pg_dump \
+  --host db.yourprojectref.supabase.co \
+  --port 5432 \
+  --username postgres \
+  --dbname postgres \
+  --schema=public \
+  --no-owner \
+  --no-acl \
+  --format=custom \
+  --file ./backups/backup_public_$(date +%Y%m%d_%H%M%S).dump
+```
+
+**Restore this backup:**
+
+```bash
+PGPASSWORD="target-password" pg_restore \
+  --host db.TARGET-PROJECT.supabase.co \
+  --port 5432 \
+  --username postgres \
+  --dbname postgres \
+  --schema=public \
+  --no-owner \
+  --no-acl \
+  ./backups/backup_public_20260905_201500.dump
+```
+
+> Do **not** use `--clean` when restoring to another Supabase project — it will try to drop internal Supabase triggers and fail with permission errors. Without `--clean` it safely inserts your data on top.
+
+---
+
+### Option 2 — Full Database Backup
+
+**Best for:** Restoring to a non-Supabase PostgreSQL server (local Docker, Neon, Railway, AWS RDS) where you have full admin access.
 
 ```bash
 node dist/index.js backup \
@@ -195,214 +200,92 @@ node dist/index.js backup \
   --password "yourpassword" \
   --database postgres \
   --ssl require \
+  --type full \
+  --format custom \
   --out ./backups
 ```
 
-**Using a connection URL (single string):**
+**Using a connection URL instead of individual flags:**
 
 ```bash
-node dist/index.js backup --url "postgresql://postgres:yourpassword@db.yourprojectref.supabase.co:5432/postgres"
+node dist/index.js backup \
+  --url "postgresql://postgres:yourpassword@db.yourprojectref.supabase.co:5432/postgres" \
+  --out ./backups
 ```
 
-> If your password has `@` in it, replace each `@` with `%40` inside the URL. Example: `p@ss` → `p%40ss`
+> If your password contains `@`, encode it as `%40` inside the URL. Example: `p@ss` → `p%40ss`
 
-### Step 5 — Check your backup file
-
-```bash
-ls -lh ./backups/
+**Output:**
 ```
-
-You will see a file like:
-```
-supavault_postgres_full_20260904_201500.dump   (e.g. 2.4 MB)
+./backups/supavault_postgres_full_20260905_201500.dump
 ```
 
 ---
 
-### Optional — Install globally so you can run from anywhere
+### Option 3 — Schema-Only or Data-Only Backup
+
+**Schema only** — backs up table structures, indexes, constraints, enums. No data rows:
 
 ```bash
-npm install -g .
-
-# Now works from any folder on your machine
-supavault backup --host db.yourprojectref.supabase.co --password "yourpassword"
+node dist/index.js backup \
+  --host db.yourprojectref.supabase.co \
+  --password "yourpassword" \
+  --type schema \
+  --out ./backups
 ```
+
+**Data only** — backs up all data rows. No table structure:
+
+```bash
+node dist/index.js backup \
+  --host db.yourprojectref.supabase.co \
+  --password "yourpassword" \
+  --type data \
+  --format plain \
+  --out ./backups
+```
+
+| Type | Backs up | File | Use case |
+|---|---|---|---|
+| `full` | Schema + all data | `.dump` or `.sql` | Full backup, migration |
+| `schema` | Table structures only | `.dump` or `.sql` | Recreate DB on new server |
+| `data` | Data rows only | `.dump` or `.sql` | Data export, seeding |
 
 ---
 
-## 🛠️ CLI Commands
-
-### `backup` — Create a database dump
-
-```bash
-node dist/index.js backup [options]
-```
+### All Backup Parameters
 
 | Flag | Short | Description | Default |
 |---|---|---|---|
-| `--url` | `-u` | Full PostgreSQL connection URI | — |
-| `--host` | `-h` | Database host (Direct Connection only) | `localhost` |
+| `--url` | `-u` | Full PostgreSQL connection URI (alternative to individual flags) | — |
+| `--host` | `-h` | Database host — Direct Connection only for Supabase | `localhost` |
 | `--port` | `-p` | Database port | `5432` |
 | `--database` | `-d` | Database name | `postgres` |
 | `--user` | `-U` | Username | `postgres` |
-| `--password` | `-W` | Password (wrap in quotes if it has special chars) | `$SUPAVAULT_PASSWORD` |
+| `--password` | `-W` | Password. Wrap in quotes if it contains special characters | `$SUPAVAULT_PASSWORD` |
 | `--ssl` | `-s` | SSL mode: `require`, `prefer`, `disable` | `require` |
 | `--type` | `-t` | Backup scope: `full`, `schema`, `data` | `full` |
-| `--format` | `-f` | Output: `custom` (.dump) or `plain` (.sql) | `custom` |
-| `--out` | `-o` | Output directory | `./backups` |
-| `--filename` | `-n` | Custom filename | Auto-generated |
+| `--format` | `-f` | Output format: `custom` → `.dump` (compressed), `plain` → `.sql` (readable) | `custom` |
+| `--out` | `-o` | Directory to save the backup file | `./backups` |
+| `--filename` | `-n` | Custom output filename | Auto-generated with timestamp |
 
-#### Backup type options
+### Check Connectivity First
 
-| Type | What it backs up | Use case |
-|---|---|---|
-| `full` | Schema + all data | Full backup, disaster recovery, migration |
-| `schema` | Table structures only (no data) | Recreate DB on a new server |
-| `data` | Data rows only (no schema) | Data export, seeding |
-
-#### Output format options
-
-| Format | File extension | Restore tool | Notes |
-|---|---|---|---|
-| `custom` | `.dump` | `pg_restore` | Compressed, recommended |
-| `plain` | `.sql` | `psql` | Human-readable SQL text |
-
-#### Examples
+Before running a backup, verify your machine can reach the database:
 
 ```bash
-# Full backup
-node dist/index.js backup -h db.xyz.supabase.co -W "secret" -t full
-
-# Schema only
-node dist/index.js backup -h db.xyz.supabase.co -W "secret" -t schema
-
-# Data only as plain SQL
-node dist/index.js backup -h db.xyz.supabase.co -W "secret" -t data -f plain
-
-# Via connection URL
-node dist/index.js backup --url "postgresql://postgres:secret@db.xyz.supabase.co:5432/postgres"
+node dist/index.js test \
+  --host db.yourprojectref.supabase.co \
+  --port 5432
 ```
 
----
-
-### `restore` — Restore a backup to a database
-
-```bash
-node dist/index.js restore --file <path> [options]
-```
-
-```bash
-node dist/index.js restore \
-  --file ./backups/supavault_postgres_full_20260904_201500.dump \
-  --host localhost \
-  --port 5432 \
-  --database postgres \
-  --user postgres \
-  --password "yourpassword" \
-  --ssl disable \
-  --clean
-```
-
-> `--clean` drops existing database objects before restoring. Use it when restoring to a database that already has tables.
-
----
-
-### `test` — Check connection before backing up
-
-Verifies your machine can reach the database. Run this first if you are unsure about your credentials:
-
-```bash
-node dist/index.js test --host db.xyz.supabase.co --port 5432
-```
-
----
-
-## 🔄 Restore & Migration
-
-### Restore to a local PostgreSQL (Docker)
-
-```bash
-# Start a local Postgres container
-docker run -d \
-  --name local-postgres \
-  -e POSTGRES_PASSWORD=localpassword \
-  -p 5432:5432 \
-  postgres:16
-
-# Restore your Supabase backup into it
-node dist/index.js restore \
-  --file ./backups/supavault_postgres_full_20260904_201500.dump \
-  --host localhost \
-  --port 5432 \
-  --database postgres \
-  --user postgres \
-  --password localpassword \
-  --ssl disable \
-  --clean
-```
-
-### Migrate Supabase Project → Another Supabase Project
-
-```bash
-# Step 1: Backup the source project
-node dist/index.js backup \
-  --host db.SOURCE-REF.supabase.co \
-  --password "source-password" \
-  --out ./backups
-
-# Step 2: Restore to the target project
-node dist/index.js restore \
-  --file ./backups/supavault_postgres_full_20260904_201500.dump \
-  --host db.TARGET-REF.supabase.co \
-  --password "target-password" \
-  --clean
-```
-
----
-
-## 🤖 Automated Daily Backups via GitHub Actions
-
-### Step 1 — Copy workflow file
-
-```bash
-mkdir -p .github/workflows
-cp examples/github-actions-daily.yml .github/workflows/backup.yml
-git add .github/workflows/backup.yml
-git commit -m "ci: add daily SupaVault backup"
-git push
-```
-
-### Step 2 — Add secrets to your GitHub repo
-
-Go to your repository → **Settings** → **Secrets and variables** → **Actions** → **New repository secret**
-
-Add these secrets:
-
-| Secret Name | Value |
-|---|---|
-| `SUPAVAULT_HOST` | `db.yourprojectref.supabase.co` (Direct Connection only) |
-| `SUPAVAULT_PASSWORD` | Your Supabase database password |
-| `SUPAVAULT_PORT` | `5432` |
-| `SUPAVAULT_DATABASE` | `postgres` |
-| `SUPAVAULT_USER` | `postgres` |
-
-### Step 3 — Trigger manually to test
-
-Go to **Actions** tab → **"Scheduled Supabase Database Backup"** → **"Run workflow"**
-
-The `.dump` file will appear as a downloadable artifact on the workflow page, kept for 30 days.
-
----
-
-## ⚙️ Using a `.env` File
-
-Instead of typing credentials every time, create a `.env` file:
+### Using a `.env` File (Skip Typing Credentials Every Time)
 
 ```bash
 cp examples/.env.example .env
 ```
 
-Edit `.env` with your details:
+Edit `.env`:
 
 ```env
 SUPAVAULT_HOST=db.yourprojectref.supabase.co
@@ -414,25 +297,220 @@ SUPAVAULT_SSL=require
 SUPAVAULT_OUT_DIR=./backups
 ```
 
-Then run without any flags — values are picked up automatically:
+Now run without any flags:
 
 ```bash
 node dist/index.js backup
 ```
 
-> ⚠️ Never commit your `.env` file to Git. It is already listed in `.gitignore`.
+> ⚠️ Never commit `.env` to Git. It is already in `.gitignore`.
 
 ---
 
-## 🐳 Running with Docker (No pg_dump install needed)
+## 🔄 Restore & Migrate
 
-Use this if you don't want to install `pg_dump` on your machine:
+### Restore to Another Supabase Project
+
+Use the **public schema backup** (Option 1) for cleanest results. Do **not** use `--clean`:
+
+```bash
+PGPASSWORD="target-password" pg_restore \
+  --host db.TARGET-PROJECT.supabase.co \
+  --port 5432 \
+  --username postgres \
+  --dbname postgres \
+  --schema=public \
+  --no-owner \
+  --no-acl \
+  ./backups/backup_public_20260905_201500.dump
+```
+
+> **Why no `--clean`?** On Supabase, `--clean` tries to DROP internal system triggers (PostgREST, pg_net, pg_graphql) that are owned by Supabase's admin role — not your `postgres` user. This causes permission errors. Without `--clean`, your data is safely inserted without touching Supabase internals. Your data will still appear correctly.
+
+---
+
+### Restore to a Local PostgreSQL (Docker)
+
+Great for testing, development, or inspecting your data safely:
+
+```bash
+# Step 1 — Start a local Postgres container
+docker run -d \
+  --name local-db \
+  -e POSTGRES_PASSWORD=localpass \
+  -p 5432:5432 \
+  postgres:16
+
+# Step 2 — Restore your backup
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
+  --host localhost \
+  --port 5432 \
+  --database postgres \
+  --user postgres \
+  --password "localpass" \
+  --ssl disable \
+  --clean
+```
+
+> `--clean` is safe here because you have full admin access to your local container.
+
+---
+
+### Restore to Neon
+
+```bash
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
+  --host ep-your-endpoint.us-east-2.aws.neon.tech \
+  --port 5432 \
+  --database neondb \
+  --user your-neon-user \
+  --password "your-neon-password" \
+  --ssl require \
+  --clean
+```
+
+---
+
+### Restore to AWS RDS
+
+```bash
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
+  --host your-db.region.rds.amazonaws.com \
+  --port 5432 \
+  --database postgres \
+  --user postgres \
+  --password "your-rds-password" \
+  --ssl require \
+  --clean
+```
+
+---
+
+### Restore to Railway
+
+```bash
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
+  --host roundhouse.proxy.rlwy.net \
+  --port 12345 \
+  --database railway \
+  --user postgres \
+  --password "your-railway-password" \
+  --ssl disable \
+  --clean
+```
+
+> Get your Railway host, port, and credentials from the Railway dashboard → your Postgres service → **Connect** tab.
+
+---
+
+### Restore Using a Connection URL
+
+You can use `--url` instead of individual flags for any provider:
+
+```bash
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
+  --url "postgresql://user:password@host:port/dbname"
+```
+
+---
+
+### All Restore Parameters
+
+| Flag | Short | Description | Default |
+|---|---|---|---|
+| `--file` | `-F` | **Required.** Path to backup file (`.dump` or `.sql`) | — |
+| `--url` | `-u` | Full PostgreSQL connection URI (alternative to individual flags) | — |
+| `--host` | `-h` | Target database host | `localhost` |
+| `--port` | `-p` | Target database port | `5432` |
+| `--database` | `-d` | Target database name | `postgres` |
+| `--user` | `-U` | Target username | `postgres` |
+| `--password` | `-W` | Target password | `$SUPAVAULT_PASSWORD` |
+| `--ssl` | `-s` | SSL mode: `require`, `prefer`, `disable` | `require` |
+| `--clean` | — | Drop existing objects before restoring. **Do not use on Supabase targets** | `false` |
+
+### Restore: `.dump` vs `.sql`
+
+| File type | Restore tool used | Notes |
+|---|---|---|
+| `.dump` (custom format) | `pg_restore` | Compressed, selective restore possible |
+| `.sql` (plain format) | `psql` | Human-readable, restores everything in order |
+
+---
+
+### Selectively Restore One Table
+
+Don't need everything — just restore a single table:
+
+```bash
+PGPASSWORD="password" pg_restore \
+  --host db.target.supabase.co \
+  --username postgres \
+  --dbname postgres \
+  --table=your_table_name \
+  --no-owner \
+  ./backups/your-backup.dump
+```
+
+---
+
+### Inspect Backup Contents Without Restoring
+
+See what's inside a `.dump` file before restoring anything:
+
+```bash
+pg_restore --list ./backups/your-backup.dump
+```
+
+---
+
+## 🤖 Automate with GitHub Actions
+
+Get a free daily backup stored as a GitHub artifact (retained 30 days).
+
+### Step 1 — Add the workflow file
+
+```bash
+mkdir -p .github/workflows
+cp examples/github-actions-daily.yml .github/workflows/backup.yml
+git add .github/workflows/backup.yml
+git commit -m "ci: add daily SupaVault backup"
+git push
+```
+
+### Step 2 — Add secrets to your GitHub repo
+
+Go to **Settings → Secrets and variables → Actions → New repository secret**:
+
+| Secret Name | Value |
+|---|---|
+| `SUPAVAULT_HOST` | `db.yourprojectref.supabase.co` |
+| `SUPAVAULT_PASSWORD` | Your database password |
+| `SUPAVAULT_PORT` | `5432` |
+| `SUPAVAULT_DATABASE` | `postgres` |
+| `SUPAVAULT_USER` | `postgres` |
+
+### Step 3 — Test it manually
+
+Go to **Actions → "Scheduled Supabase Database Backup" → Run workflow**
+
+The `.dump` file will appear as a downloadable artifact on the workflow run page.
+
+---
+
+## 🐳 Docker (No pg_dump Install Needed)
+
+Use this if you do not want to install `pg_dump` on your machine:
 
 ```bash
 # Build the image
 docker build -f docker/Dockerfile -t supavault .
 
-# Run backup (mounts ./backups as output)
+# Run backup
 docker run --rm \
   --env-file .env \
   -v $(pwd)/backups:/backups \
@@ -447,62 +525,65 @@ Your backup file appears in `./backups/` on your host machine.
 
 ### `pg_dump: command not found`
 
-PostgreSQL client tools are not installed. Install them:
-
 ```bash
 # macOS
 brew install libpq && brew link --force libpq
 
+# If brew is not found, install Homebrew first:
+/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
 # Ubuntu/Debian
 sudo apt-get install -y postgresql-client
-```
-
-If `brew` is not found on macOS, install Homebrew first:
-```bash
-/bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
 ```
 
 ---
 
 ### `FATAL: no tenant identifier provided`
 
-You are using the **Pooler URL** instead of the **Direct Connection URL**.
+You are using the **pooler URL**. Switch to the **Direct Connection** host.
 
 ```
-# ❌ Wrong — pooler URL
-aws-0-ap-southeast-1.pooler.supabase.com
-
-# ✅ Correct — direct connection URL
-db.yourprojectref.supabase.co
+❌  aws-0-region.pooler.supabase.com    ← pooler, does not work
+✅  db.yourprojectref.supabase.co       ← direct connection, use this
 ```
 
-Go to Supabase Dashboard → Project Settings → Database → switch to **"Direct connection"** to get the correct host.
+Go to Supabase Dashboard → Project Settings → Database → toggle **"Direct connection"**.
+
+---
+
+### `must be owner of event trigger` errors during restore
+
+This happens when you use `--clean` while restoring to a Supabase project. Supabase's internal triggers (`pgrst_drop_watch`, `issue_pg_net_access`, etc.) are owned by `supabase_admin`, not your `postgres` user.
+
+**Fix:** Remove `--clean` when the restore target is a Supabase project. Your data will still restore correctly.
+
+**Better fix:** Use the public schema backup (Option 1) which never includes these internal objects.
 
 ---
 
 ### `FATAL: password authentication failed`
 
-Your password is wrong. Find it in **Supabase Dashboard** → **Project Settings** → **Database**. You can reset it there if needed.
+Your password is wrong. Reset it at Supabase Dashboard → Project Settings → Database → **"Reset database password"**.
 
-If your password has special characters like `@` or `!`:
-- Always wrap in double quotes: `--password "p@ss!word"`
+If your password has special characters:
+- With flags: wrap in double quotes `--password "p@ss!word"`
 - In a URL: encode `@` as `%40` → `p%40ss!word`
 
 ---
 
 ### `Connection timed out`
 
-- Check you are using **port 5432** and the **Direct Connection host**
-- Some ISPs block outbound port 5432. Try on a different network or mobile hotspot
+- Make sure you are using the **Direct Connection** host and port `5432`
+- Some ISPs block port 5432. Try a different network or mobile hotspot
 
 ---
 
 ### `pg_dump: server version mismatch`
 
-Your local `pg_dump` is older than your Supabase Postgres version. Install a matching version:
+Your local `pg_dump` version is older than your Supabase Postgres version. Install a matching version:
 
 ```bash
-# macOS — install PostgreSQL 16 client
+# macOS
 brew install postgresql@16
 echo 'export PATH="/opt/homebrew/opt/postgresql@16/bin:$PATH"' >> ~/.zshrc
 source ~/.zshrc
@@ -512,16 +593,12 @@ source ~/.zshrc
 
 ### `npx supavault: command not found`
 
-SupaVault is not yet published to npm. Use `node dist/index.js` instead:
+SupaVault is not yet published to npm. Clone and run from source:
 
 ```bash
-# Clone the repo first
-git clone https://github.com/<your-username>/supavault.git
+git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
 cd supavault
-npm install
-npm run build
-
-# Then run
+npm install && npm run build
 node dist/index.js backup --host db.xyz.supabase.co --password "yourpassword"
 ```
 
@@ -529,7 +606,4 @@ node dist/index.js backup --host db.xyz.supabase.co --password "yourpassword"
 
 ## 📄 License
 
-This project is open-source software licensed under the [MIT License](LICENSE). Built with ❤️ by [Fawru](https://fawru.com) & Pulkit Bisht.
-
-# supavault
-Open-source CLI to backup Supabase databases without upgrading your plan. Wraps pg_dump with a clean interface — full, schema-only, or data-only dumps. Works with any PostgreSQL host.
+Open-source software licensed under the [MIT License](LICENSE). Built with ❤️ by [Fawru](https://fawru.com) & Pulkit Bisht.
