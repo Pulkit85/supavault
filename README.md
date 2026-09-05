@@ -151,46 +151,9 @@ npm run build
 
 ---
 
-### Option 1 — Public Schema Backup ✅ Recommended for Supabase
+### Option 1 — Full Backup (All Tables & Data) ✅ Recommended
 
-**Best for:** Backing up to another Supabase project or any PostgreSQL provider.
-
-This backs up only your `public` schema — your own tables and data — and skips Supabase's internal system objects (PostgREST triggers, Storage internals). This avoids permission errors during restore and gives you a clean, portable backup.
-
-```bash
-PGPASSWORD="yourpassword" pg_dump \
-  --host db.yourprojectref.supabase.co \
-  --port 5432 \
-  --username postgres \
-  --dbname postgres \
-  --schema=public \
-  --no-owner \
-  --no-acl \
-  --format=custom \
-  --file ./backups/backup_public_$(date +%Y%m%d_%H%M%S).dump
-```
-
-**Restore this backup:**
-
-```bash
-PGPASSWORD="target-password" pg_restore \
-  --host db.TARGET-PROJECT.supabase.co \
-  --port 5432 \
-  --username postgres \
-  --dbname postgres \
-  --schema=public \
-  --no-owner \
-  --no-acl \
-  ./backups/backup_public_20260905_201500.dump
-```
-
-> Do **not** use `--clean` when restoring to another Supabase project — it will try to drop internal Supabase triggers and fail with permission errors. Without `--clean` it safely inserts your data on top.
-
----
-
-### Option 2 — Full Database Backup
-
-**Best for:** Restoring to a non-Supabase PostgreSQL server (local Docker, Neon, Railway, AWS RDS) where you have full admin access.
+**Best for:** Backing up your complete Supabase database and migrating to another Supabase project or any other PostgreSQL provider.
 
 ```bash
 node dist/index.js backup \
@@ -205,16 +168,6 @@ node dist/index.js backup \
   --out ./backups
 ```
 
-**Using a connection URL instead of individual flags:**
-
-```bash
-node dist/index.js backup \
-  --url "postgresql://postgres:yourpassword@db.yourprojectref.supabase.co:5432/postgres" \
-  --out ./backups
-```
-
-> If your password contains `@`, encode it as `%40` inside the URL. Example: `p@ss` → `p%40ss`
-
 **Output:**
 ```
 ./backups/supavault_postgres_full_20260905_201500.dump
@@ -222,9 +175,23 @@ node dist/index.js backup \
 
 ---
 
+### Option 2 — Backup Using a Connection URL
+
+**Best for:** Quick one-liner backup without passing separate flags.
+
+```bash
+node dist/index.js backup \
+  --url "postgresql://postgres:yourpassword@db.yourprojectref.supabase.co:5432/postgres" \
+  --out ./backups
+```
+
+> 🔑 If your password contains `@`, encode it as `%40` in the URL (e.g. `p@ss` → `p%40ss`).
+
+---
+
 ### Option 3 — Schema-Only or Data-Only Backup
 
-**Schema only** — backs up table structures, indexes, constraints, enums. No data rows:
+**Schema only** — backs up table structures, indexes, constraints, and enums (no row data):
 
 ```bash
 node dist/index.js backup \
@@ -234,7 +201,7 @@ node dist/index.js backup \
   --out ./backups
 ```
 
-**Data only** — backs up all data rows. No table structure:
+**Data only** — backs up data rows only:
 
 ```bash
 node dist/index.js backup \
@@ -245,11 +212,11 @@ node dist/index.js backup \
   --out ./backups
 ```
 
-| Type | Backs up | File | Use case |
+| Type | Backs up | File format | Use case |
 |---|---|---|---|
-| `full` | Schema + all data | `.dump` or `.sql` | Full backup, migration |
-| `schema` | Table structures only | `.dump` or `.sql` | Recreate DB on new server |
-| `data` | Data rows only | `.dump` or `.sql` | Data export, seeding |
+| `full` | Schema + all table data | `.dump` (compressed) | Full disaster recovery, project migration |
+| `schema` | Tables, indexes, enums (no data) | `.dump` or `.sql` | Clone database structure to a new instance |
+| `data` | Table rows only | `.dump` or `.sql` | Data-only backup or seeding |
 
 ---
 
@@ -311,21 +278,21 @@ node dist/index.js backup
 
 ### Restore to Another Supabase Project
 
-Use the **public schema backup** (Option 1) for cleanest results. Do **not** use `--clean`:
+To migrate your backup into a new or existing Supabase project, run the restore command **without the `--clean` flag**:
 
 ```bash
-PGPASSWORD="target-password" pg_restore \
+node dist/index.js restore \
+  --file ./backups/supavault_postgres_full_20260905_201500.dump \
   --host db.TARGET-PROJECT.supabase.co \
   --port 5432 \
-  --username postgres \
-  --dbname postgres \
-  --schema=public \
-  --no-owner \
-  --no-acl \
-  ./backups/backup_public_20260905_201500.dump
+  --database postgres \
+  --user postgres \
+  --password "target-project-password"
 ```
 
-> **Why no `--clean`?** On Supabase, `--clean` tries to DROP internal system triggers (PostgREST, pg_net, pg_graphql) that are owned by Supabase's admin role — not your `postgres` user. This causes permission errors. Without `--clean`, your data is safely inserted without touching Supabase internals. Your data will still appear correctly.
+> 💡 **Why omit `--clean` on Supabase?**
+> Supabase projects have pre-installed internal triggers (`pgrst_drop_watch`, `issue_pg_net_access`, etc.) owned by the internal `supabase_admin` system user. If you pass `--clean`, Postgres tries to `DROP` those internal triggers and logs permission warnings. Omitting `--clean` safely restores all of your application tables and data without touching internal system triggers.
+
 
 ---
 
@@ -553,11 +520,9 @@ Go to Supabase Dashboard → Project Settings → Database → toggle **"Direct 
 
 ### `must be owner of event trigger` errors during restore
 
-This happens when you use `--clean` while restoring to a Supabase project. Supabase's internal triggers (`pgrst_drop_watch`, `issue_pg_net_access`, etc.) are owned by `supabase_admin`, not your `postgres` user.
+This happens when you pass `--clean` while restoring to a Supabase project. Supabase's internal triggers (`pgrst_drop_watch`, `issue_pg_net_access`, etc.) are owned by `supabase_admin`, not your `postgres` user.
 
-**Fix:** Remove `--clean` when the restore target is a Supabase project. Your data will still restore correctly.
-
-**Better fix:** Use the public schema backup (Option 1) which never includes these internal objects.
+**Fix:** Do not include `--clean` when restoring to a Supabase project. All your tables and data will restore safely without throwing permission warnings. Use `--clean` only on databases where you have full root/superuser access (e.g., local Docker Postgres).
 
 ---
 
