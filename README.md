@@ -23,6 +23,21 @@
 
 ---
 
+## 🌿 Branch Guide
+
+| Branch | Status | Description |
+|---|---|---|
+| [`Release_1.0.0`](../../tree/Release_1.0.0) | ✅ **Latest — Recommended** | Stable release. Use this for running backups. |
+| `main` | 🔒 Protected | Mirrors the latest release. Always in sync with `Release_1.0.0`. |
+| `development` | 🚧 In progress | Active development. May be unstable. |
+
+> **Always clone or checkout `Release_1.0.0`** for the most stable experience:
+> ```bash
+> git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
+> ```
+
+---
+
 ## 💡 Why SupaVault?
 
 Supabase Free Tier does not include automated daily backups or Point-in-Time Recovery (PITR). If you want to:
