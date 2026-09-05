@@ -131,16 +131,20 @@ FATAL: no tenant identifier provided (external_id or sni_hostname required)
 
 ## 💾 Backup
 
-### Which command to use?
+### 🚀 4 Ways to Run SupaVault
 
-| Situation | Command prefix |
-|---|---|
-| **Cloned the repo locally** | `node dist/index.js` |
-| Installed globally via `npm install -g .` | `supavault` |
+Choose the method that suits your workflow:
 
-All examples below use `node dist/index.js` since SupaVault is run from source.
+| Method | When to use | Command format |
+|---|---|---|
+| **1. Local Clone** (Recommended) | You want to inspect or build code | `node dist/index.js backup ...` |
+| **2. NPX (Zero Install)** | Run instantly without cloning | `npx github:<your-username>/supavault#Release_1.0.0 backup ...` |
+| **3. Global Install** | Run `supavault` from any terminal directory | `supavault backup ...` |
+| **4. Docker Container** | Don't want to install Node or `pg_dump` | `docker run ... supavault backup ...` |
 
-### Setup (one time)
+---
+
+### Setup for Local Clone (Method 1)
 
 ```bash
 git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
@@ -148,6 +152,11 @@ cd supavault
 npm install
 npm run build
 ```
+
+> 💡 **Tip:** If you prefer running without cloning, use **Method 2 (NPX)**:
+> ```bash
+> npx github:<your-username>/supavault#Release_1.0.0 backup --host db.yourprojectref.supabase.co --password "yourpassword"
+> ```
 
 ---
 
@@ -556,15 +565,26 @@ source ~/.zshrc
 
 ---
 
-### `npx supavault: command not found`
+### `Error: Cannot find module '.../dist/index.js'`
 
-SupaVault is not yet published to npm. Clone and run from source:
+This happens if you haven't compiled the TypeScript code yet. Run:
 
 ```bash
-git clone --branch Release_1.0.0 https://github.com/<your-username>/supavault.git
-cd supavault
-npm install && npm run build
-node dist/index.js backup --host db.xyz.supabase.co --password "yourpassword"
+npm run build
+```
+
+Then retry `node dist/index.js backup ...`.
+
+---
+
+### `command not found: node`
+
+Node.js is not installed on your machine or not in your PATH. 
+
+Download and install the **LTS** version from [nodejs.org](https://nodejs.org/), then restart your terminal and verify:
+
+```bash
+node --version
 ```
 
 ---

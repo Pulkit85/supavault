@@ -8,10 +8,17 @@
   },
   "scripts": {
     "build": "tsc",
+    "prepare": "npm run build",
+    "prepack": "npm run build",
     "start": "node dist/index.js",
     "dev": "ts-node src/index.ts",
     "format": "prettier --write 'src/**/*.ts'"
   },
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "keywords": [
     "supabase",
     "postgresql",
