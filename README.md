@@ -20,6 +20,9 @@
 
 </div>
 
+> 🌐 **Prefer a Web UI over the Terminal?**
+> If you are not comfortable with CLI or terminal commands, you can use the hosted **[SupaVault Web Dashboard on Fawru](https://fawru.com/products/supavault)**. Save your connection details securely, click **Backup**, and your database dump file streams directly to your browser for instant local download.
+
 ---
 
 ## 🌿 Branch Guide
@@ -39,7 +42,12 @@
 
 ## 💡 Why SupaVault?
 
-Supabase Free Tier does not include automated backups or Point-in-Time Recovery (PITR). SupaVault solves this with a lightweight CLI tool — back up your database to your local machine, migrate across providers, or automate with GitHub Actions for free.
+Supabase Free Tier does not include automated backups or Point-in-Time Recovery (PITR). SupaVault gives you full freedom over your data:
+
+- 🖥️ **Web Dashboard (No Code)** — Use [fawru.com/products/supavault](https://fawru.com/products/supavault) to trigger instant browser downloads.
+- 💻 **Open-Source CLI** — Run standalone on your laptop, servers, or in custom scripts.
+- ⚡ **Automated Daily Backups** — Free daily backups using GitHub Actions runners.
+- 🔁 **Zero Lock-In Migration** — Seamlessly move data between Supabase, Neon, AWS RDS, Railway, or local Docker.
 
 ---
 
